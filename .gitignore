@@ -1,0 +1,60 @@
+# ----------------------
+# Terraform
+# ----------------------
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform/
+.terraform.lock.hcl
+
+# ----------------------
+# Ansible
+# ----------------------
+*.retry
+*.vault_pass
+*.log
+
+# ----------------------
+# Python (helper scripts)
+# ----------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# ----------------------
+# Docker
+# ----------------------
+*.env
+docker-compose.override.yml
+
+# ----------------------
+# Keys and credentials
+# ----------------------
+*.pem
+*.key
+*.crt
+*.csr
+*.secrets
+*.creds
+
+# ----------------------
+# OS / Editor junk
+# ----------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# VS Code / Cursor
+.vscode/
+.cursor/
