@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Config
+APP_DIR="{{ app_dir }}"
+BUCKET="{{ backup_bucket }}"
+PG_CONTAINER="postgres"
+PG_USER="{{ pg_user }}"
+PG_DB="{{ pg_db }}"
+
+TIMESTAMP="$(date +'%Y%m%d-%H%M%S')"
+BACKUP_FILE="/tmp/${PG_DB}-${TIMESTAMP}.sql.gz"
+S3_KEY="db-backups/${PG_DB}-${TIMESTAMP}.sql.gz"
+
+# Ensure docker is up
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker not found" >&2
+  exit 1
+fi
+
+# Create dump from inside the Postgres container, stream + gzip
+docker exec -i "$PG_CONTAINER" pg_dump -U "$PG_USER" "$PG_DB" | gzip > "$BACKUP_FILE"
+
+# Upload to S3 (bucket must be private, versioned, encrypted)
+aws s3 cp "$BACKUP_FILE" "s3://${BUCKET}/${S3_KEY}"
+
+# Cleanup
+rm -f "$BACKUP_FILE"
+echo "Backup completed: s3://${BUCKET}/${S3_KEY}"

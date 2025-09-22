@@ -1,0 +1,132 @@
+- name: Bootstrap EC2, deploy services, and enable backups
+  hosts: ec2
+  become: yes
+
+  vars:
+    app_dir: /opt/lucanet
+    backup_bucket: "<YOUR_S3_BUCKET_NAME>"   # <-- set this
+    pg_user: lucanet
+    pg_password: changeMe123
+    pg_db: finance
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install base packages
+      apt:
+        name:
+          - curl
+          - unzip
+          - ufw
+          - unattended-upgrades
+          - docker.io
+          - docker-compose-plugin
+          - logrotate
+        state: present
+
+    - name: Add ubuntu to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Enable automatic security updates
+      command: dpkg-reconfigure -f noninteractive unattended-upgrades
+
+    - name: Configure UFW allow SSH and WireGuard
+      ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+      loop:
+        - { port: "22",    proto: "tcp" }
+        - { port: "51820", proto: "udp" }
+
+    - name: Enable UFW default deny incoming
+      ufw:
+        state: enabled
+        policy: deny
+
+    # ---------- AWS CLI v2 ----------
+    - name: Check if AWS CLI v2 is installed
+      stat:
+        path: /usr/local/bin/aws
+      register: awscli_bin
+
+    - name: Download AWS CLI v2
+      get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp/awscliv2.zip
+        mode: "0644"
+      when: not awscli_bin.stat.exists
+
+    - name: Unzip AWS CLI v2
+      unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp/
+        remote_src: yes
+      when: not awscli_bin.stat.exists
+
+    - name: Install AWS CLI v2
+      command: sudo /tmp/aws/install
+      args:
+        creates: /usr/local/bin/aws
+      when: not awscli_bin.stat.exists
+
+    # ---------- App deploy ----------
+    - name: Create app directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Drop docker-compose.yml
+      template:
+        src: templates/docker-compose.yml.j2
+        dest: "{{ app_dir }}/docker-compose.yml"
+        mode: "0644"
+
+    - name: Ensure data directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ app_dir }}/postgres-data"
+        - "{{ app_dir }}/grafana-data"
+
+    - name: Start services with Docker Compose
+      shell: docker compose up -d
+      args:
+        chdir: "{{ app_dir }}"
+
+    # ---------- Backup script + cron ----------
+    - name: Install backup script
+      template:
+        src: templates/backup.sh.j2
+        dest: /usr/local/bin/lucanet-backup.sh
+        mode: "0750"
+
+    - name: Create cron job for nightly DB backup (02:00)
+      copy:
+        dest: /etc/cron.d/lucanet-backup
+        mode: "0644"
+        content: |
+          # m h dom mon dow user  command
+          0 2 * * * root /usr/local/bin/lucanet-backup.sh > /var/log/lucanet-backup.log 2>&1
+
+    - name: Logrotate for lucanet-backup.log
+      copy:
+        dest: /etc/logrotate.d/lucanet-backup
+        mode: "0644"
+        content: |
+          /var/log/lucanet-backup.log {
+              weekly
+              rotate 4
+              compress
+              missingok
+              notifempty
+              create 0640 root root
+          }

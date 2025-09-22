@@ -1,0 +1,25 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: {{ pg_user }}
+      POSTGRES_PASSWORD: {{ pg_password }}
+      POSTGRES_DB: {{ pg_db }}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    # Bind to loopback only so it's NOT internet-exposed
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "{{ pg_password }}"
+    volumes:
+      - ./grafana-data:/var/lib/grafana
+    # Bind to loopback only so it's NOT internet-exposed
+    ports:
+      - "127.0.0.1:3000:3000"
