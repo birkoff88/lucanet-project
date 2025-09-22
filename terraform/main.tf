@@ -25,7 +25,7 @@ data "aws_ssm_parameter" "ubuntu_2204_ami" {
   name = "/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id"
 }
 
-# Security Group: SSH + WireGuard from your IP only
+# Security Group: SSH + WireGuard from my IP only
 resource "aws_security_group" "sg" {
   name        = "${var.project}-sg"
   description = "SSH + WireGuard from my IP only"
